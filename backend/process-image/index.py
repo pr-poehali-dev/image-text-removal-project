@@ -143,7 +143,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 })
             }
     except Exception as flux_error:
-        pass
+        print(f"FLUX fallback to LAMA due to: {str(flux_error)}")
     
     try:
         result = fal_client.subscribe(
