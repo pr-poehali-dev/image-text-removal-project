@@ -7,6 +7,7 @@ import ExamplesSection from '@/components/ExamplesSection';
 import ApiSection from '@/components/ApiSection';
 import FaqSection from '@/components/FaqSection';
 import Footer from '@/components/Footer';
+import ProgressIndicator from '@/components/ProgressIndicator';
 
 function Index() {
   const [uploadedImages, setUploadedImages] = useState<ProcessedImage[]>([]);
@@ -105,6 +106,7 @@ function Index() {
       <ApiSection />
       <FaqSection />
       <Footer />
+      <ProgressIndicator />
     </div>
   );
 }

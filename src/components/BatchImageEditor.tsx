@@ -5,6 +5,7 @@ import { Slider } from '@/components/ui/slider';
 import Icon from '@/components/ui/icon';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
+import { useAutoSave } from '@/hooks/useAutoSave';
 
 interface BatchImage {
   file: File;
@@ -29,8 +30,31 @@ export default function BatchImageEditor({ images, onImagesUpdate, onProcessAll 
   const [tool, setTool] = useState<'brush' | 'eraser'>('brush');
   const imageRef = useRef<HTMLImageElement | null>(null);
   const { toast } = useToast();
+  const { saveMasks, loadMasks, clearMasks } = useAutoSave();
 
   const currentImage = images[currentImageIndex];
+
+  useEffect(() => {
+    const savedMasks = loadMasks(images);
+    if (savedMasks.length > 0) {
+      const updatedImages = images.map(img => {
+        const savedMask = savedMasks.find(m => m.fileName === img.file.name);
+        if (savedMask) {
+          return { ...img, maskDataUrl: savedMask.maskDataUrl };
+        }
+        return img;
+      });
+      onImagesUpdate(updatedImages);
+      toast({
+        title: "Прогресс восстановлен",
+        description: `Загружено масок: ${savedMasks.length}`,
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    saveMasks(images);
+  }, [images]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -236,6 +260,19 @@ export default function BatchImageEditor({ images, onImagesUpdate, onProcessAll 
     });
   };
 
+  const clearAllMasks = () => {
+    const updatedImages = images.map(img => ({
+      ...img,
+      maskDataUrl: undefined
+    }));
+    onImagesUpdate(updatedImages);
+    clearMasks();
+    toast({
+      title: "Маски очищены",
+      description: "Все маски удалены, автосохранение сброшено",
+    });
+  };
+
   const nextImage = () => {
     if (currentImageIndex < images.length - 1) {
       setCurrentImageIndex(currentImageIndex + 1);
@@ -284,7 +321,7 @@ export default function BatchImageEditor({ images, onImagesUpdate, onProcessAll 
               <span className="text-sm w-12 text-right">{brushSize}px</span>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Button variant="outline" size="sm" onClick={clearMask}>
                 <Icon name="RotateCcw" size={16} className="mr-1" />
                 Сбросить
@@ -292,6 +329,10 @@ export default function BatchImageEditor({ images, onImagesUpdate, onProcessAll 
               <Button variant="outline" size="sm" onClick={applyMaskToAll}>
                 <Icon name="Copy" size={16} className="mr-1" />
                 На все
+              </Button>
+              <Button variant="outline" size="sm" onClick={clearAllMasks}>
+                <Icon name="Trash2" size={16} className="mr-1" />
+                Очистить все
               </Button>
             </div>
           </div>
@@ -305,7 +346,8 @@ export default function BatchImageEditor({ images, onImagesUpdate, onProcessAll 
               onMouseUp={stopDrawing}
               onMouseLeave={stopDrawing}
             />
-            <div className="absolute top-2 left-2 bg-background/80 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium">
+            <div className="absolute top-2 left-2 bg-background/80 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2">
+              <Icon name="Save" size={12} className="text-green-500" />
               {currentImageIndex + 1} / {images.length}
             </div>
             <div className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm px-3 py-1 rounded-full text-xs">
