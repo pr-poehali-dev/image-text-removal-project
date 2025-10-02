@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
 import ImageEditor from './ImageEditor';
+import BatchImageEditor from './BatchImageEditor';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 export interface ProcessedImage {
@@ -29,12 +30,63 @@ export default function EditorSection({
   onProcessAllImages,
   onClearImages,
 }: EditorSectionProps) {
-  const [mode, setMode] = useState<'auto' | 'manual'>('auto');
+  const [mode, setMode] = useState<'auto' | 'manual' | 'batch'>('auto');
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
+  const [batchImages, setBatchImages] = useState<ProcessedImage[]>([]);
 
   const handleManualProcess = (index: number, maskDataUrl: string) => {
     onProcessImage(index, maskDataUrl);
     setSelectedImageIndex(null);
+  };
+
+  const handleBatchUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+      const newImages: ProcessedImage[] = files.map(file => ({
+        file,
+        preview: URL.createObjectURL(file),
+        processing: false
+      }));
+      setBatchImages(newImages);
+    }
+  };
+
+  const handleBatchProcessAll = async () => {
+    for (let i = 0; i < batchImages.length; i++) {
+      const image = batchImages[i];
+      if (!image.maskDataUrl || image.processing || image.processed) continue;
+
+      setBatchImages(prev => prev.map((img, idx) => 
+        idx === i ? { ...img, processing: true, error: undefined } : img
+      ));
+
+      try {
+        const response = await fetch('https://functions.poehali.dev/28b39e66-6f50-4a13-a9e7-c95f9f0067e5', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            image_url: image.preview,
+            mask_url: image.maskDataUrl
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.output_url) {
+          setBatchImages(prev => prev.map((img, idx) => 
+            idx === i ? { ...img, processing: false, processed: data.output_url } : img
+          ));
+        } else {
+          throw new Error(data.error || 'Processing failed');
+        }
+      } catch (error) {
+        setBatchImages(prev => prev.map((img, idx) => 
+          idx === i ? { ...img, processing: false, error: error instanceof Error ? error.message : 'Ошибка' } : img
+        ));
+      }
+    }
   };
 
   return (
@@ -43,15 +95,19 @@ export default function EditorSection({
         <div className="max-w-6xl mx-auto">
           <h2 className="text-4xl font-bold text-center mb-12">Редактор изображений</h2>
           
-          <Tabs value={mode} onValueChange={(v) => setMode(v as 'auto' | 'manual')} className="mb-8">
-            <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
+          <Tabs value={mode} onValueChange={(v) => setMode(v as 'auto' | 'manual' | 'batch')} className="mb-8">
+            <TabsList className="grid w-full max-w-2xl mx-auto grid-cols-3">
               <TabsTrigger value="auto">
                 <Icon name="Zap" size={16} className="mr-2" />
-                Автоудаление текста
+                Автоудаление
               </TabsTrigger>
               <TabsTrigger value="manual">
                 <Icon name="Paintbrush" size={16} className="mr-2" />
-                Ручное выделение
+                Ручное
+              </TabsTrigger>
+              <TabsTrigger value="batch">
+                <Icon name="Layers" size={16} className="mr-2" />
+                Пакетное
               </TabsTrigger>
             </TabsList>
 
@@ -224,6 +280,75 @@ export default function EditorSection({
                       </CardContent>
                     </Card>
                   ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="batch" className="mt-6">
+              <Card className="mb-8">
+                <CardContent className="pt-6">
+                  <div className="border-2 border-dashed border-border rounded-lg p-12 text-center hover:border-primary transition-colors cursor-pointer">
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={handleBatchUpload}
+                      className="hidden"
+                      id="file-upload-batch"
+                    />
+                    <label htmlFor="file-upload-batch" className="cursor-pointer">
+                      <Icon name="Upload" className="mx-auto text-muted-foreground mb-4" size={48} />
+                      <p className="text-lg font-medium mb-2">Загрузите несколько изображений</p>
+                      <p className="text-sm text-muted-foreground">Примените одну маску на все или настройте каждое</p>
+                    </label>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {batchImages.length > 0 && (
+                <div className="space-y-6">
+                  <BatchImageEditor
+                    images={batchImages}
+                    onImagesUpdate={setBatchImages}
+                    onProcessAll={handleBatchProcessAll}
+                  />
+
+                  {batchImages.some(img => img.processed) && (
+                    <Card>
+                      <CardContent className="pt-6">
+                        <h3 className="text-lg font-semibold mb-4">Результаты обработки</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          {batchImages.filter(img => img.processed).map((image, index) => (
+                            <Card key={index}>
+                              <CardContent className="p-3">
+                                <div className="aspect-square bg-muted rounded-lg overflow-hidden mb-2">
+                                  <img
+                                    src={image.processed}
+                                    alt=""
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="w-full"
+                                  onClick={() => {
+                                    const link = document.createElement('a');
+                                    link.href = image.processed!;
+                                    link.download = image.file.name;
+                                    link.click();
+                                  }}
+                                >
+                                  <Icon name="Download" size={14} className="mr-1" />
+                                  Скачать
+                                </Button>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
               )}
             </TabsContent>
