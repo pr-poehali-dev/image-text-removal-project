@@ -273,6 +273,81 @@ export default function BatchImageEditor({ images, onImagesUpdate, onProcessAll 
     });
   };
 
+  const exportProject = () => {
+    const projectData = {
+      version: '1.0',
+      timestamp: Date.now(),
+      masks: images
+        .filter(img => img.maskDataUrl)
+        .map(img => ({
+          fileName: img.file.name,
+          fileSize: img.file.size,
+          fileType: img.file.type,
+          maskDataUrl: img.maskDataUrl
+        }))
+    };
+
+    const blob = new Blob([JSON.stringify(projectData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `image-eraser-project-${Date.now()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "Проект экспортирован",
+      description: `Сохранено масок: ${projectData.masks.length}`,
+    });
+  };
+
+  const importProject = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const projectData = JSON.parse(event.target?.result as string);
+          
+          if (!projectData.version || !projectData.masks) {
+            throw new Error('Invalid project file');
+          }
+
+          const updatedImages = images.map(img => {
+            const savedMask = projectData.masks.find(
+              (m: any) => m.fileName === img.file.name && m.fileSize === img.file.size
+            );
+            if (savedMask) {
+              return { ...img, maskDataUrl: savedMask.maskDataUrl };
+            }
+            return img;
+          });
+
+          onImagesUpdate(updatedImages);
+          
+          const importedCount = updatedImages.filter(img => img.maskDataUrl).length;
+          toast({
+            title: "Проект импортирован",
+            description: `Загружено масок: ${importedCount} из ${projectData.masks.length}`,
+          });
+        } catch (error) {
+          toast({
+            title: "Ошибка импорта",
+            description: "Неверный формат файла проекта",
+            variant: "destructive"
+          });
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  };
+
   const nextImage = () => {
     if (currentImageIndex < images.length - 1) {
       setCurrentImageIndex(currentImageIndex + 1);
@@ -355,7 +430,7 @@ export default function BatchImageEditor({ images, onImagesUpdate, onProcessAll 
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
             <Button 
               variant="outline" 
               onClick={prevImage}
@@ -365,8 +440,20 @@ export default function BatchImageEditor({ images, onImagesUpdate, onProcessAll 
               Назад
             </Button>
 
-            <div className="text-sm text-muted-foreground">
-              Готовы к обработке: {maskedCount} / {images.length}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm text-muted-foreground">
+                Готовы: {maskedCount} / {images.length}
+              </span>
+              <div className="flex gap-1">
+                <Button variant="outline" size="sm" onClick={exportProject}>
+                  <Icon name="Download" size={14} className="mr-1" />
+                  Экспорт
+                </Button>
+                <Button variant="outline" size="sm" onClick={importProject}>
+                  <Icon name="Upload" size={14} className="mr-1" />
+                  Импорт
+                </Button>
+              </div>
             </div>
 
             <Button 
@@ -426,52 +513,72 @@ export default function BatchImageEditor({ images, onImagesUpdate, onProcessAll 
             Обработать все ({maskedCount})
           </Button>
 
-          <Card className="bg-muted/30">
-            <CardContent className="pt-4 pb-4">
-              <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                <Icon name="Keyboard" size={16} />
-                Горячие клавиши
-              </h4>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 text-xs">
-                <div className="flex items-center gap-2">
-                  <kbd className="px-2 py-1 bg-background rounded border">←</kbd>
-                  <span className="text-muted-foreground">Предыдущее</span>
+          <div className="grid md:grid-cols-2 gap-4">
+            <Card className="bg-muted/30">
+              <CardContent className="pt-4 pb-4">
+                <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                  <Icon name="Keyboard" size={16} />
+                  Горячие клавиши
+                </h4>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <kbd className="px-2 py-1 bg-background rounded border">←</kbd>
+                    <span className="text-muted-foreground">Предыдущее</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <kbd className="px-2 py-1 bg-background rounded border">→</kbd>
+                    <span className="text-muted-foreground">Следующее</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <kbd className="px-2 py-1 bg-background rounded border">Space</kbd>
+                    <span className="text-muted-foreground">Обработать</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <kbd className="px-2 py-1 bg-background rounded border">B</kbd>
+                    <span className="text-muted-foreground">Кисть</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <kbd className="px-2 py-1 bg-background rounded border">E</kbd>
+                    <span className="text-muted-foreground">Ластик</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <kbd className="px-2 py-1 bg-background rounded border">R</kbd>
+                    <span className="text-muted-foreground">Сбросить</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <kbd className="px-2 py-1 bg-background rounded border">C</kbd>
+                    <span className="text-muted-foreground">На все</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <kbd className="px-2 py-1 bg-background rounded border">[ ]</kbd>
+                    <span className="text-muted-foreground">Размер</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <kbd className="px-2 py-1 bg-background rounded border">→</kbd>
-                  <span className="text-muted-foreground">Следующее</span>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-blue-500/10 border-blue-500/20">
+              <CardContent className="pt-4 pb-4">
+                <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                  <Icon name="FileJson" size={16} className="text-blue-500" />
+                  Экспорт/Импорт проекта
+                </h4>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Сохраните маски в JSON файл и продолжите работу на другом устройстве
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="flex-1" onClick={exportProject}>
+                    <Icon name="Download" size={14} className="mr-1" />
+                    Экспорт ({maskedCount})
+                  </Button>
+                  <Button variant="outline" size="sm" className="flex-1" onClick={importProject}>
+                    <Icon name="Upload" size={14} className="mr-1" />
+                    Импорт
+                  </Button>
                 </div>
-                <div className="flex items-center gap-2">
-                  <kbd className="px-2 py-1 bg-background rounded border">Space</kbd>
-                  <span className="text-muted-foreground">Обработать</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <kbd className="px-2 py-1 bg-background rounded border">B</kbd>
-                  <span className="text-muted-foreground">Кисть</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <kbd className="px-2 py-1 bg-background rounded border">E</kbd>
-                  <span className="text-muted-foreground">Ластик</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <kbd className="px-2 py-1 bg-background rounded border">R</kbd>
-                  <span className="text-muted-foreground">Сбросить</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <kbd className="px-2 py-1 bg-background rounded border">C</kbd>
-                  <span className="text-muted-foreground">На все</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <kbd className="px-2 py-1 bg-background rounded border">[</kbd>
-                  <span className="text-muted-foreground">Кисть -</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <kbd className="px-2 py-1 bg-background rounded border">]</kbd>
-                  <span className="text-muted-foreground">Кисть +</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </CardContent>
     </Card>
