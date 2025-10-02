@@ -6,18 +6,133 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import Icon from '@/components/ui/icon';
 import { useToast } from '@/hooks/use-toast';
 
+interface ProcessedImage {
+  file: File;
+  preview: string;
+  processing: boolean;
+  processed?: string;
+  error?: string;
+}
+
 function Index() {
-  const [uploadedImages, setUploadedImages] = useState<File[]>([]);
+  const [uploadedImages, setUploadedImages] = useState<ProcessedImage[]>([]);
   const { toast } = useToast();
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
-      setUploadedImages(prev => [...prev, ...files]);
+      const newImages: ProcessedImage[] = files.map(file => ({
+        file,
+        preview: URL.createObjectURL(file),
+        processing: false
+      }));
+      setUploadedImages(prev => [...prev, ...newImages]);
       toast({
         title: "Изображения загружены",
         description: `Добавлено файлов: ${files.length}`,
       });
+    }
+  };
+
+  const processImage = async (index: number) => {
+    const image = uploadedImages[index];
+    
+    setUploadedImages(prev => prev.map((img, i) => 
+      i === index ? { ...img, processing: true, error: undefined } : img
+    ));
+
+    try {
+      const response = await fetch('https://functions.poehali.dev/28b39e66-6f50-4a13-a9e7-c95f9f0067e5', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          image_url: image.preview
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.output_url) {
+        setUploadedImages(prev => prev.map((img, i) => 
+          i === index ? { ...img, processing: false, processed: data.output_url } : img
+        ));
+        toast({
+          title: "Готово!",
+          description: "Изображение обработано успешно",
+        });
+      } else {
+        throw new Error(data.error || 'Processing failed');
+      }
+    } catch (error) {
+      setUploadedImages(prev => prev.map((img, i) => 
+        i === index ? { ...img, processing: false, error: error instanceof Error ? error.message : 'Ошибка обработки' } : img
+      ));
+      toast({
+        title: "Ошибка",
+        description: error instanceof Error ? error.message : 'Не удалось обработать изображение',
+        variant: "destructive"
+      });
+    }
+  };
+
+  const processAllImages = async () => {
+    for (let i = 0; i < uploadedImages.length; i++) {
+      if (!uploadedImages[i].processed && !uploadedImages[i].processing) {
+        await processImage(i);
+      }
+    }
+  };
+
+  const processImage = async (index: number) => {
+    const image = uploadedImages[index];
+    
+    setUploadedImages(prev => prev.map((img, i) => 
+      i === index ? { ...img, processing: true, error: undefined } : img
+    ));
+
+    try {
+      const response = await fetch('https://functions.poehali.dev/28b39e66-6f50-4a13-a9e7-c95f9f0067e5', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          image_url: image.preview
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.output_url) {
+        setUploadedImages(prev => prev.map((img, i) => 
+          i === index ? { ...img, processing: false, processed: data.output_url } : img
+        ));
+        toast({
+          title: "Готово!",
+          description: "Изображение обработано успешно",
+        });
+      } else {
+        throw new Error(data.error || 'Processing failed');
+      }
+    } catch (error) {
+      setUploadedImages(prev => prev.map((img, i) => 
+        i === index ? { ...img, processing: false, error: error instanceof Error ? error.message : 'Ошибка обработки' } : img
+      ));
+      toast({
+        title: "Ошибка",
+        description: error instanceof Error ? error.message : 'Не удалось обработать изображение',
+        variant: "destructive"
+      });
+    }
+  };
+
+  const processAllImages = async () => {
+    for (let i = 0; i < uploadedImages.length; i++) {
+      if (!uploadedImages[i].processed && !uploadedImages[i].processing) {
+        await processImage(i);
+      }
     }
   };
 
@@ -137,29 +252,87 @@ function Index() {
               <div className="animate-fade-in">
                 <h3 className="text-2xl font-semibold mb-4">Загруженные изображения ({uploadedImages.length})</h3>
                 <div className="grid md:grid-cols-2 gap-6">
-                  {uploadedImages.map((file, index) => (
+                  {uploadedImages.map((image, index) => (
                     <Card key={index}>
                       <CardContent className="pt-6">
-                        <div className="aspect-video bg-muted rounded-lg mb-4 flex items-center justify-center overflow-hidden">
-                          <img
-                            src={URL.createObjectURL(file)}
-                            alt={file.name}
-                            className="max-h-full max-w-full rounded-lg object-cover"
-                          />
+                        <div className="grid grid-cols-2 gap-2 mb-4">
+                          <div>
+                            <p className="text-xs font-medium text-center mb-2">Оригинал</p>
+                            <div className="aspect-video bg-muted rounded-lg flex items-center justify-center overflow-hidden">
+                              <img
+                                src={image.preview}
+                                alt={image.file.name}
+                                className="max-h-full max-w-full rounded-lg object-cover"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-center mb-2">Результат</p>
+                            <div className="aspect-video bg-muted rounded-lg flex items-center justify-center overflow-hidden">
+                              {image.processing ? (
+                                <Icon name="Loader2" className="animate-spin text-primary" size={32} />
+                              ) : image.processed ? (
+                                <img
+                                  src={image.processed}
+                                  alt="Обработано"
+                                  className="max-h-full max-w-full rounded-lg object-cover"
+                                />
+                              ) : (
+                                <Icon name="ImageOff" className="text-muted-foreground" size={32} />
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <p className="text-sm font-medium truncate mb-3">{file.name}</p>
-                        <Button className="w-full">
-                          <Icon name="Play" className="mr-2" size={16} />
-                          Обработать
-                        </Button>
+                        <p className="text-sm font-medium truncate mb-3">{image.file.name}</p>
+                        {image.error && (
+                          <p className="text-xs text-destructive mb-2">{image.error}</p>
+                        )}
+                        <div className="flex gap-2">
+                          <Button 
+                            className="flex-1" 
+                            onClick={() => processImage(index)}
+                            disabled={image.processing || !!image.processed}
+                          >
+                            {image.processing ? (
+                              <>
+                                <Icon name="Loader2" className="mr-2 animate-spin" size={16} />
+                                Обработка...
+                              </>
+                            ) : image.processed ? (
+                              <>
+                                <Icon name="Check" className="mr-2" size={16} />
+                                Готово
+                              </>
+                            ) : (
+                              <>
+                                <Icon name="Play" className="mr-2" size={16} />
+                                Обработать
+                              </>
+                            )}
+                          </Button>
+                          {image.processed && (
+                            <Button 
+                              variant="outline" 
+                              size="icon"
+                              onClick={() => window.open(image.processed, '_blank')}
+                            >
+                              <Icon name="Download" size={16} />
+                            </Button>
+                          )}
+                        </div>
                       </CardContent>
                     </Card>
                   ))}
                 </div>
                 <div className="mt-6 flex gap-4">
-                  <Button size="lg" className="flex-1">
+                  <Button 
+                    size="lg" 
+                    className="flex-1"
+                    onClick={processAllImages}
+                    disabled={uploadedImages.every(img => img.processed || img.processing)}
+                  >
                     <Icon name="Layers" className="mr-2" size={20} />
-                    Обработать все ({uploadedImages.length})
+                    Обработать все ({uploadedImages.filter(img => !img.processed).length})
                   </Button>
                   <Button size="lg" variant="outline" onClick={() => setUploadedImages([])}>
                     Очистить
