@@ -28,7 +28,7 @@ function Index() {
     }
   };
 
-  const processImage = async (index: number) => {
+  const processImage = async (index: number, maskDataUrl?: string) => {
     const image = uploadedImages[index];
     
     setUploadedImages(prev => prev.map((img, i) => 
@@ -36,14 +36,20 @@ function Index() {
     ));
 
     try {
+      const requestBody: any = {
+        image_url: image.preview
+      };
+
+      if (maskDataUrl) {
+        requestBody.mask_url = maskDataUrl;
+      }
+
       const response = await fetch('https://functions.poehali.dev/28b39e66-6f50-4a13-a9e7-c95f9f0067e5', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          image_url: image.preview
-        })
+        body: JSON.stringify(requestBody)
       });
 
       const data = await response.json();

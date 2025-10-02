@@ -52,6 +52,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     
     body_data = json.loads(event.get('body', '{}'))
     image_url = body_data.get('image_url')
+    mask_url = body_data.get('mask_url')
     
     if not image_url:
         return {
@@ -64,6 +65,50 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
     
     os.environ['FAL_KEY'] = fal_key
+    
+    if mask_url:
+        try:
+            result = fal_client.subscribe(
+                "fal-ai/flux-pro/v1.1/fill",
+                arguments={
+                    "image_url": image_url,
+                    "mask_url": mask_url,
+                    "prompt": "clean natural background, photorealistic, high quality, seamless restoration",
+                    "negative_prompt": "blur, artifacts, noise, low quality",
+                    "num_inference_steps": 50,
+                    "guidance_scale": 7.5,
+                    "strength": 0.99,
+                    "seed": 42
+                },
+                with_logs=False
+            )
+            
+            output_url = result.get('image', {}).get('url') if isinstance(result.get('image'), dict) else result.get('image')
+            
+            if output_url:
+                return {
+                    'statusCode': 200,
+                    'headers': {
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*'
+                    },
+                    'isBase64Encoded': False,
+                    'body': json.dumps({
+                        'success': True,
+                        'output_url': output_url,
+                        'request_id': context.request_id,
+                        'method': 'flux-fill-masked'
+                    })
+                }
+        except Exception as e:
+            return {
+                'statusCode': 500,
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
+                'body': json.dumps({'error': f'Manual processing failed: {str(e)}'})
+            }
     
     try:
         result = fal_client.subscribe(
