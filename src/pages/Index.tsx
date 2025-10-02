@@ -85,57 +85,6 @@ function Index() {
     }
   };
 
-  const processImage = async (index: number) => {
-    const image = uploadedImages[index];
-    
-    setUploadedImages(prev => prev.map((img, i) => 
-      i === index ? { ...img, processing: true, error: undefined } : img
-    ));
-
-    try {
-      const response = await fetch('https://functions.poehali.dev/28b39e66-6f50-4a13-a9e7-c95f9f0067e5', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          image_url: image.preview
-        })
-      });
-
-      const data = await response.json();
-
-      if (data.success && data.output_url) {
-        setUploadedImages(prev => prev.map((img, i) => 
-          i === index ? { ...img, processing: false, processed: data.output_url } : img
-        ));
-        toast({
-          title: "Готово!",
-          description: "Изображение обработано успешно",
-        });
-      } else {
-        throw new Error(data.error || 'Processing failed');
-      }
-    } catch (error) {
-      setUploadedImages(prev => prev.map((img, i) => 
-        i === index ? { ...img, processing: false, error: error instanceof Error ? error.message : 'Ошибка обработки' } : img
-      ));
-      toast({
-        title: "Ошибка",
-        description: error instanceof Error ? error.message : 'Не удалось обработать изображение',
-        variant: "destructive"
-      });
-    }
-  };
-
-  const processAllImages = async () => {
-    for (let i = 0; i < uploadedImages.length; i++) {
-      if (!uploadedImages[i].processed && !uploadedImages[i].processing) {
-        await processImage(i);
-      }
-    }
-  };
-
   const scrollToSection = (section: string) => {
     const element = document.getElementById(section);
     element?.scrollIntoView({ behavior: 'smooth' });
