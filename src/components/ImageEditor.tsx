@@ -22,6 +22,44 @@ export default function ImageEditor({ imageUrl, processedUrl, onProcess, process
   const imageRef = useRef<HTMLImageElement | null>(null);
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      switch(e.key) {
+        case ' ':
+          e.preventDefault();
+          if (!processedUrl && !processing) {
+            handleProcess();
+          }
+          break;
+        case 'b':
+          e.preventDefault();
+          setTool('brush');
+          break;
+        case 'e':
+          e.preventDefault();
+          setTool('eraser');
+          break;
+        case 'r':
+          e.preventDefault();
+          clearMask();
+          break;
+        case '[':
+          e.preventDefault();
+          setBrushSize(prev => Math.max(5, prev - 5));
+          break;
+        case ']':
+          e.preventDefault();
+          setBrushSize(prev => Math.min(100, prev + 5));
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [processedUrl, processing]);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -257,6 +295,37 @@ export default function ImageEditor({ imageUrl, processedUrl, onProcess, process
               </>
             )}
           </div>
+
+          <Card className="bg-muted/30">
+            <CardContent className="pt-3 pb-3">
+              <div className="flex items-center gap-4 text-xs flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Icon name="Keyboard" size={14} />
+                  <span className="font-medium">Клавиши:</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <kbd className="px-2 py-1 bg-background rounded border text-xs">Space</kbd>
+                  <span className="text-muted-foreground">Обработать</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <kbd className="px-2 py-1 bg-background rounded border text-xs">B</kbd>
+                  <span className="text-muted-foreground">Кисть</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <kbd className="px-2 py-1 bg-background rounded border text-xs">E</kbd>
+                  <span className="text-muted-foreground">Ластик</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <kbd className="px-2 py-1 bg-background rounded border text-xs">R</kbd>
+                  <span className="text-muted-foreground">Сбросить</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <kbd className="px-2 py-1 bg-background rounded border text-xs">[ ]</kbd>
+                  <span className="text-muted-foreground">Размер</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </CardContent>
     </Card>
