@@ -5,6 +5,7 @@ import Icon from '@/components/ui/icon';
 import ImageEditor from './ImageEditor';
 import BatchImageEditor from './BatchImageEditor';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { BatchImage } from './batch/types';
 
 export interface ProcessedImage {
   file: File;
@@ -32,7 +33,7 @@ export default function EditorSection({
 }: EditorSectionProps) {
   const [mode, setMode] = useState<'auto' | 'manual' | 'batch'>('auto');
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
-  const [batchImages, setBatchImages] = useState<ProcessedImage[]>([]);
+  const [batchImages, setBatchImages] = useState<BatchImage[]>([]);
 
   const handleManualProcess = (index: number, maskDataUrl: string) => {
     onProcessImage(index, maskDataUrl);
@@ -42,10 +43,9 @@ export default function EditorSection({
   const handleBatchUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
-      const newImages: ProcessedImage[] = files.map(file => ({
+      const newImages: BatchImage[] = files.map(file => ({
         file,
-        preview: URL.createObjectURL(file),
-        processing: false
+        preview: URL.createObjectURL(file)
       }));
       setBatchImages(newImages);
     }
